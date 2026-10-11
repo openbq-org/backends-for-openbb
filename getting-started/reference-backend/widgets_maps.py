@@ -16,20 +16,15 @@ maps with layers; part 3 (widgets_maps_files.py) returns files and declares
 map sources.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from core import register_widget
 from widgets_maps_data import (
-    CANADA_PROVINCES,
-    CENSUS_REGIONS,
-    COUNTRIES,
-    IOWA_COUNTIES,
-    METRICS,
     STATE_NAMES,
     STATES,
-    WORLD_OFFICES,
     YEARS,
-    seeded,
+    offices,
+    one_of,
     state_metric,
     stores,
 )
@@ -42,213 +37,55 @@ router = APIRouter()
 # ============================================================================
 
 @register_widget({
-    "name": "Map - Points from rows",
-    "description": "Stores as points placed by lat and lon, coloured by revenue and sized by headcount (synthetic).",
+    "name": "Map - Points",
+    "description": "Points from rows, coloured by revenue and sized by headcount: placed by lat and lon, or by the name of a city (synthetic).",
     "category": "Maps",
     "type": "map",
     "endpoint": "maps_points",
     "gridData": {"w": 20, "h": 13},
+    "params": [
+        {
+            "paramName": "place_by",
+            "label": "Place by",
+            "description": "What places a row: its coordinates (US stores), or the name of its city (offices worldwide)",
+            "type": "text",
+            "value": "coordinates",
+            "options": [
+                {"label": "Latitude and longitude", "value": "coordinates"},
+                {"label": "City name", "value": "city"},
+            ],
+        }
+    ],
     "data": {
         "map": {
             "lat": "lat",  # the column of the latitude, -90 to 90
             "lon": "lon",  # the column of the longitude, -180 to 180
+            "city": "city",  # places a row that has no lat and lon, matched by name in the app
+            "country": "country",  # narrows the match of a city: which "London"
             "label": "city",  # the name in the hover card
             "value": "revenue_musd",  # the number the colour scale reads
             "size": "headcount",  # the number the size of a point reads
-            "props": ["state", "format", "opened"],  # other columns of the hover card (12 at most)
+            "props": ["state", "country", "format", "opened"],  # other columns of the hover card (12 at most)
             "valueLabel": "Revenue (USD m, synthetic)",  # what the legend calls the value
         }
     },
 })
 @router.get("/maps_points")
-def maps_points():
-    """Points from rows with lat and lon.
+def maps_points(place_by: str = "coordinates"):
+    """Points from rows. The answer is rows in both cases:
+
+        place_by=coordinates  [{"lat": 41.88, "lon": -87.63, "city": "Chicago", "revenue_musd": 12.4, ...}]
+        place_by=city         [{"city": "London", "country": "GB", "revenue_musd": 31.0, ...}]
 
     Get right: "lat" and "lon" are numbers in two separate columns, and they
-    are not swapped: Chicago is lat 41.88, lon -87.63. A swapped pair lands in
-    the ocean or fails the map (a latitude is -90 to 90). A street address is
-    not a place: geocode in the backend. A map draws up to 20,000 points.
+    are not swapped: Chicago is lat 41.88, lon -87.63. A row without them is
+    placed by its "city" when the mapping names that column: send the country
+    (or the state, for US cities) beside it, so "London" is not ambiguous. A
+    name that matches nothing is left out and the map says how many. A street
+    address is not a place: geocode in the backend. A map draws 20,000 points.
     """
-    return stores()
-
-
-@register_widget({
-    "name": "Map - Points by city name",
-    "description": "Offices placed by the name of their city, no coordinates in the rows (synthetic, global).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_points_by_city",
-    "gridData": {"w": 20, "h": 13},
-    "data": {
-        "map": {
-            "city": "city",  # the column of city names, matched in the app
-            "country": "country",  # narrows the match: which "London"
-            "label": "city",
-            "value": "staff",
-            "size": "staff",
-            "props": ["country"],
-            "valueLabel": "Staff (synthetic)",
-        }
-    },
-})
-@router.get("/maps_points_by_city")
-def maps_points_by_city():
-    """Points placed by a city name, for rows that have no coordinates.
-
-    Get right: send the country (and the state, for US cities) beside the city,
-    so "London" is not ambiguous. Cities of 25,000 residents or more are known;
-    a name that matches nothing is left out and the map says how many.
-    """
-    return [
-        {"city": name, "country": country, "staff": int(40 + seeded("office", name).random() * 900)}
-        for name, country in WORLD_OFFICES
-    ]
-
-
-# ============================================================================
-# SHADED REGIONS
-# ============================================================================
-
-@register_widget({
-    "name": "Map - Regions by US state",
-    "description": "US states shaded by a value, matched by their two-letter USPS code (synthetic).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_regions_states",
-    "gridData": {"w": 20, "h": 13},
-    "data": {
-        "map": {
-            "state": "state",  # USPS code ("CA"), FIPS code ("06") or name ("California")
-            "value": "unemployment_pct",
-            "label": "state_name",
-            "props": ["region"],
-            "valueLabel": "Unemployment rate (%, synthetic)",
-        }
-    },
-})
-@router.get("/maps_regions_states")
-def maps_regions_states():
-    """US states shaded by a value.
-
-    Get right: one row for each state, and a code that matches reliably: the
-    two-letter USPS code ("CA") or the two-digit FIPS code as TEXT ("06", so the
-    leading zero survives). The second row of a state is not drawn.
-    """
-    return [
-        {
-            "state": usps,
-            "state_name": name,
-            "region": region,
-            "unemployment_pct": state_metric(usps, "unemployment_pct"),
-        }
-        for usps, _fips, name, region, _lon, _lat in STATES
-    ]
-
-
-@register_widget({
-    "name": "Map - Regions by US county (FIPS)",
-    "description": "The 99 counties of Iowa shaded by a value, matched by their five-digit FIPS code (synthetic).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_regions_counties",
-    "gridData": {"w": 20, "h": 13},
-    "data": {
-        "map": {
-            "county": "fips",  # five-digit FIPS code as text: "19153"
-            "value": "yield_bu_ac",
-            "label": "county",
-            "props": ["state"],
-            "valueLabel": "Corn yield (bu/ac, synthetic)",
-        }
-    },
-})
-@router.get("/maps_regions_counties")
-def maps_regions_counties():
-    """US counties shaded by a value.
-
-    Get right: the five-digit FIPS code as TEXT ("19153" = state 19 + county
-    153; "06037" keeps its zero). A county name alone is ambiguous ("Washington
-    County" is in many states): a name only matches with its state ("Polk County, IA").
-    A map shades up to 4,000 regions, so all 3,231 counties fit.
-    """
-    return [
-        {
-            "fips": f"19{2 * at + 1:03d}",
-            "county": f"{name} County",
-            "state": "IA",
-            "yield_bu_ac": round(165 + seeded("yield", name).random() * 60, 1),
-        }
-        for at, name in enumerate(IOWA_COUNTIES)
-    ]
-
-
-@register_widget({
-    "name": "Map - Regions by country (ISO)",
-    "description": "Countries shaded by a value that goes below and above zero, matched by ISO 3166-1 alpha-3 code (synthetic, global).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_regions_countries",
-    "gridData": {"w": 20, "h": 13},
-    "data": {
-        "map": {
-            "country": "iso3",  # ISO alpha-3 ("USA"), alpha-2 ("US"), numeric (840) or name
-            "value": "gdp_growth_pct",
-            "label": "country",
-            "valueLabel": "GDP growth (%, synthetic)",
-        }
-    },
-})
-@router.get("/maps_regions_countries")
-def maps_regions_countries():
-    """Countries shaded by a value.
-
-    Get right: ISO 3166-1 codes match reliably ("USA", "US" or 840); names work
-    too but spellings vary. Values on both sides of zero get a two-colour scale
-    that meets at zero, with no extra setting.
-    """
-    return [
-        {
-            "iso3": iso3,
-            "country": name,
-            "gdp_growth_pct": round(-3 + seeded("growth", iso3).random() * 10, 1),
-        }
-        for iso3, name in COUNTRIES
-    ]
-
-
-@register_widget({
-    "name": "Map - Regions by province (ISO 3166-2)",
-    "description": "The provinces and territories of Canada shaded by a value, matched by ISO 3166-2 code (synthetic).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_regions_provinces",
-    "gridData": {"w": 20, "h": 13},
-    "data": {
-        "map": {
-            "province": "code",  # ISO 3166-2: "CA-ON", "DE-BY", "BR-SP"
-            "within": "Canada",  # the country of every row, as text (not a column)
-            "value": "housing_starts_k",
-            "label": "province",
-            "valueLabel": "Housing starts (thousands, synthetic)",
-        }
-    },
-})
-@router.get("/maps_regions_provinces")
-def maps_regions_provinces():
-    """States and provinces of any country, shaded by a value.
-
-    Get right: the ISO 3166-2 code ("CA-ON") matches by itself. With short
-    codes ("ON") or names, "within" must name the country, because "ON" alone
-    could be a region of several countries.
-    """
-    return [
-        {
-            "code": code,
-            "province": name,
-            "housing_starts_k": round(1 + seeded("starts", code).random() ** 2 * 90, 1),
-        }
-        for code, name in CANADA_PROVINCES
-    ]
+    one_of("place_by", place_by, ["coordinates", "city"])
+    return stores() if place_by == "coordinates" else offices()
 
 
 # ============================================================================
@@ -264,7 +101,7 @@ def maps_regions_provinces():
     "gridData": {"w": 20, "h": 13},
     "data": {
         "map": {
-            "state": "state",
+            "state": "state",  # a region column: USPS code ("CA"), FIPS code as text ("06") or name
             "value": "unemployment_pct",
             "label": "state_name",
             "time": "year",  # the column of the steps: a year, "2024-03", "2024-03-15"
@@ -289,21 +126,35 @@ def maps_time():
             "unemployment_pct": state_metric(usps, "unemployment_pct", year),
         }
         for year in YEARS
-        for usps, _fips, name, *_rest in STATES
+        for usps, name, _region in STATES
     ]
 
 
 # ============================================================================
-# MARKERS AND TAGS FROM COLUMNS
+# MARKERS, TAGS, RANKS AND CATEGORIES
 # ============================================================================
 
 @register_widget({
-    "name": "Map - Markers and tags from columns",
-    "description": "Stores where the rows the backend singles out carry a sign and a short text beside the point (synthetic).",
+    "name": "Map - Markers, tags, ranks and categories",
+    "description": "Stores where a few rows are singled out: by a sign and a tag from two columns, by a rank and a highlight, or by the colour of a category (synthetic).",
     "category": "Maps",
     "type": "map",
     "endpoint": "maps_marks",
     "gridData": {"w": 20, "h": 13},
+    "params": [
+        {
+            "paramName": "style",
+            "label": "Single out by",
+            "description": "How the map singles out some of the stores",
+            "type": "text",
+            "value": "signs",
+            "options": [
+                {"label": "Signs and tags from columns", "value": "signs"},
+                {"label": "Ranks and highlights", "value": "ranks"},
+                {"label": "Colour by category", "value": "categories"},
+            ],
+        }
+    ],
     "data": {
         "map": {
             "lat": "lat",
@@ -318,103 +169,68 @@ def maps_time():
     },
 })
 @router.get("/maps_marks")
-def maps_marks():
-    """Signs and tags driven by two columns of the rows.
+def maps_marks(style: str = "signs"):
+    """What a mark says besides its value. The shape of the answer follows the parameter:
+
+        style=signs       rows, read by "data.map": [{"lat", "lon", "marker": "star", "tag": "Austin: $61.6M"}]
+        style=ranks       a map: {"valueLabel": ..., "points": [{"lat", "lon", "marker": 1, "tag": ...,
+                          "markerColor": "positive", "meaning": "Five largest stores"},
+                          {"lat", "lon", "highlight": true, ...}]}
+        style=categories  a map: {"categoryLabel": ..., "points": [{"lat", "lon", "category": "Outlet"}]}
 
     Get right: mark FEW rows (the ones that answer a question) and leave the
-    cell empty (None) in the others. A column mapping takes the five named
-    signs only; ranks, highlights and sign colours need a map with marks (see
-    "Map - Ranks, highlights and sign colours" in widgets_maps_layers.py).
+    cell empty (None) in the others. A column takes the five named signs only.
+    A rank (1 to 99), "highlight", "markerColor" (accent, positive, negative,
+    neutral or #rrggbb) and "meaning" (the line of the legend, 60 characters)
+    are fields of a mark, so the endpoint returns the map itself. A map has 12
+    categories at most: group the long tail as "Other" in the backend, and do
+    not give a mark both a "category" and a "value".
     """
-    rows = stores()
-    top = sorted(rows, key=lambda row: row["revenue_musd"], reverse=True)[:3]
-    newest = max(rows, key=lambda row: row["opened"])
-    for row in rows:
-        row["marker"] = "star" if row in top else "flag" if row is newest else None
-        row["tag"] = (
-            f"{row['city']}: ${row['revenue_musd']}M" if row in top
-            else f"Newest ({row['opened']})" if row is newest
-            else None
-        )
-    return rows
+    one_of("style", style, ["signs", "ranks", "categories"])
+    rows = sorted(stores(), key=lambda row: row["revenue_musd"], reverse=True)
 
+    if style == "signs":
+        newest = max(rows, key=lambda row: row["opened"])
+        for at, row in enumerate(rows):
+            row["marker"] = "star" if at < 3 else "flag" if row is newest else None
+            row["tag"] = (
+                f"{row['city']}: ${row['revenue_musd']}M" if at < 3
+                else f"Newest ({row['opened']})" if row is newest
+                else None
+            )
+        return rows
 
-# ============================================================================
-# PARAMETERS
-# ============================================================================
+    if style == "ranks":
+        points = []
+        for at, row in enumerate(rows):
+            point = {
+                "lat": row["lat"],
+                "lon": row["lon"],
+                "label": row["city"],
+                "value": row["revenue_musd"],
+                "props": {"state": row["state"]},
+            }
+            if at < 5:
+                point.update(marker=at + 1, tag=f"{row['city']} ${row['revenue_musd']}M",
+                             markerColor="positive", meaning="Five largest stores")
+            elif at >= len(rows) - 3:
+                point.update(highlight=True, tag=row["city"],
+                             markerColor="negative", meaning="Three smallest stores")
+            points.append(point)
+        return {"valueLabel": "Revenue (USD m, synthetic)", "points": points}
 
-@register_widget({
-    "name": "Map - Parameters",
-    "description": "US states shaded by the metric, the year and the census region chosen in the parameters of the widget (synthetic).",
-    "category": "Maps",
-    "type": "map",
-    "endpoint": "maps_parameters",
-    "gridData": {"w": 20, "h": 13},
-    "params": [
-        {
-            "paramName": "metric",
-            "label": "Metric",
-            "description": "The number that shades the states",
-            "type": "text",
-            "value": "unemployment_pct",
-            "options": [
-                {"label": "Unemployment rate", "value": "unemployment_pct"},
-                {"label": "Median income", "value": "median_income_kusd"},
-                {"label": "Population", "value": "population_m"},
-            ],
-        },
-        {
-            "paramName": "year",
-            "label": "Year",
-            "description": "The year of the numbers",
-            "type": "text",
-            "value": "2025",
-            "options": [{"label": str(year), "value": str(year)} for year in YEARS],
-        },
-        {
-            "paramName": "region",
-            "label": "Region",
-            "description": "Keep the states of one census region",
-            "type": "text",
-            "value": "all",
-            "options": [{"label": "All regions", "value": "all"}]
-            + [{"label": region, "value": region} for region in CENSUS_REGIONS],
-        },
-    ],
-    "data": {"map": {"title": "States by metric (synthetic)"}},
-})
-@router.get("/maps_parameters")
-def maps_parameters(metric: str = "unemployment_pct", year: str = "2025", region: str = "all"):
-    """A map whose endpoint takes parameters, like any other widget.
-
-    Get right: "data.map" is fixed in widgets.json, so when a parameter changes
-    WHAT the value is, return the map itself and write "valueLabel" in the
-    answer: { "valueLabel": ..., "regions": { "set": "us-states", "items":
-    [{ "code", "value", "label" }] } }. Answer a value a parameter cannot have
-    with a 400, never with other rows.
-    """
-    if metric not in METRICS:
-        raise HTTPException(status_code=400, detail=f"metric: one of {', '.join(METRICS)}")
-    if not year.isdigit() or int(year) not in YEARS:
-        raise HTTPException(status_code=400, detail=f"year: {YEARS[0]} to {YEARS[-1]}")
-    if region != "all" and region not in CENSUS_REGIONS:
-        raise HTTPException(status_code=400, detail=f"region: all, {', '.join(CENSUS_REGIONS)}")
     return {
-        "title": f"{METRICS[metric][0]}, {year}",
-        "valueLabel": METRICS[metric][0],
-        "regions": {
-            "set": "us-states",
-            "items": [
-                {
-                    "code": usps,
-                    "label": name,
-                    "value": state_metric(usps, metric, int(year)),
-                    "props": {"region": state_region},
-                }
-                for usps, _fips, name, state_region, _lon, _lat in STATES
-                if region in ("all", state_region)
-            ],
-        },
+        "categoryLabel": "Store format",
+        "points": [
+            {
+                "lat": row["lat"],
+                "lon": row["lon"],
+                "label": row["city"],
+                "category": row["format"],
+                "props": {"state": row["state"], "revenue_musd": row["revenue_musd"]},
+            }
+            for row in rows
+        ],
     }
 
 

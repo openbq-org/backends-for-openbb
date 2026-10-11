@@ -3,8 +3,8 @@ Synthetic datasets and tiny binary writers for the Maps tab.
 
 Everything here is made up from fixed seeds, in code, with the standard library
 only: no network, no data files, no new dependency. The only real things are
-the codes a map matches rows by (USPS and FIPS codes of the US states, the FIPS
-codes of the counties of Iowa, ISO 3166 codes) and the coordinates of cities.
+the codes a map matches rows by (USPS codes of the US states, the FIPS codes of
+the counties of Iowa, ISO 3166 codes) and the coordinates of cities.
 
 The widgets live in widgets_maps.py (rows), widgets_maps_layers.py (maps with
 layers) and widgets_maps_files.py (files and map sources).
@@ -17,66 +17,73 @@ import struct
 import zipfile
 import zlib
 
+from fastapi import HTTPException
+
+
+def one_of(name: str, value: str, allowed) -> None:
+    """Answers 400 when a parameter has a value it cannot have. Never answer with other data."""
+    if value not in allowed:
+        raise HTTPException(status_code=400, detail=f"{name}: one of {', '.join(allowed)}")
+
 # ============================================================================
 # PLACES
 # ============================================================================
 
-# (USPS code, FIPS code, name, census region, longitude, latitude)
+# (USPS code, name, census region)
 STATES = [
-    ("AL", "01", "Alabama", "South", -86.75, 32.79),
-    ("AK", "02", "Alaska", "West", -151.06, 64.50),
-    ("AZ", "04", "Arizona", "West", -111.59, 34.29),
-    ("AR", "05", "Arkansas", "South", -92.36, 34.90),
-    ("CA", "06", "California", "West", -119.98, 37.25),
-    ("CO", "08", "Colorado", "West", -105.55, 39.00),
-    ("CT", "09", "Connecticut", "Northeast", -72.66, 41.62),
-    ("DE", "10", "Delaware", "South", -75.40, 38.73),
-    ("DC", "11", "District of Columbia", "South", -77.00, 38.90),
-    ("FL", "12", "Florida", "South", -81.65, 28.65),
-    ("GA", "13", "Georgia", "South", -83.25, 32.65),
-    ("HI", "15", "Hawaii", "West", -155.46, 19.60),
-    ("ID", "16", "Idaho", "West", -115.06, 44.39),
-    ("IL", "17", "Illinois", "Midwest", -89.51, 40.07),
-    ("IN", "18", "Indiana", "Midwest", -86.17, 39.91),
-    ("IA", "19", "Iowa", "Midwest", -93.22, 42.07),
-    ("KS", "20", "Kansas", "Midwest", -98.33, 38.48),
-    ("KY", "21", "Kentucky", "South", -85.03, 37.53),
-    ("LA", "22", "Louisiana", "South", -91.70, 30.36),
-    ("ME", "23", "Maine", "Northeast", -69.12, 45.36),
-    ("MD", "24", "Maryland", "South", -77.05, 39.36),
-    ("MA", "25", "Massachusetts", "Northeast", -72.15, 42.27),
-    ("MI", "26", "Michigan", "Midwest", -84.51, 43.48),
-    ("MN", "27", "Minnesota", "Midwest", -94.45, 46.32),
-    ("MS", "28", "Mississippi", "South", -89.77, 32.75),
-    ("MO", "29", "Missouri", "Midwest", -92.48, 38.37),
-    ("MT", "30", "Montana", "West", -109.56, 47.03),
-    ("NE", "31", "Nebraska", "Midwest", -100.07, 41.53),
-    ("NV", "32", "Nevada", "West", -117.03, 39.36),
-    ("NH", "33", "New Hampshire", "Northeast", -71.64, 43.69),
-    ("NJ", "34", "New Jersey", "Northeast", -74.77, 39.78),
-    ("NM", "35", "New Mexico", "West", -106.05, 34.42),
-    ("NY", "36", "New York", "Northeast", -76.10, 42.94),
-    ("NC", "37", "North Carolina", "South", -80.16, 35.54),
-    ("ND", "38", "North Dakota", "Midwest", -100.45, 47.45),
-    ("OH", "39", "Ohio", "Midwest", -82.71, 40.29),
-    ("OK", "40", "Oklahoma", "South", -97.23, 35.58),
-    ("OR", "41", "Oregon", "West", -120.56, 43.94),
-    ("PA", "42", "Pennsylvania", "Northeast", -77.79, 40.87),
-    ("RI", "44", "Rhode Island", "Northeast", -71.58, 41.69),
-    ("SC", "45", "South Carolina", "South", -80.55, 33.91),
-    ("SD", "46", "South Dakota", "Midwest", -100.26, 44.44),
-    ("TN", "47", "Tennessee", "South", -86.33, 35.84),
-    ("TX", "48", "Texas", "South", -99.98, 31.48),
-    ("UT", "49", "Utah", "West", -111.55, 39.32),
-    ("VT", "50", "Vermont", "Northeast", -72.74, 44.08),
-    ("VA", "51", "Virginia", "South", -79.68, 37.13),
-    ("WA", "53", "Washington", "West", -119.68, 47.38),
-    ("WV", "54", "West Virginia", "South", -80.66, 38.64),
-    ("WI", "55", "Wisconsin", "Midwest", -90.31, 44.63),
-    ("WY", "56", "Wyoming", "West", -107.55, 43.00),
+    ("AL", "Alabama", "South"),
+    ("AK", "Alaska", "West"),
+    ("AZ", "Arizona", "West"),
+    ("AR", "Arkansas", "South"),
+    ("CA", "California", "West"),
+    ("CO", "Colorado", "West"),
+    ("CT", "Connecticut", "Northeast"),
+    ("DE", "Delaware", "South"),
+    ("DC", "District of Columbia", "South"),
+    ("FL", "Florida", "South"),
+    ("GA", "Georgia", "South"),
+    ("HI", "Hawaii", "West"),
+    ("ID", "Idaho", "West"),
+    ("IL", "Illinois", "Midwest"),
+    ("IN", "Indiana", "Midwest"),
+    ("IA", "Iowa", "Midwest"),
+    ("KS", "Kansas", "Midwest"),
+    ("KY", "Kentucky", "South"),
+    ("LA", "Louisiana", "South"),
+    ("ME", "Maine", "Northeast"),
+    ("MD", "Maryland", "South"),
+    ("MA", "Massachusetts", "Northeast"),
+    ("MI", "Michigan", "Midwest"),
+    ("MN", "Minnesota", "Midwest"),
+    ("MS", "Mississippi", "South"),
+    ("MO", "Missouri", "Midwest"),
+    ("MT", "Montana", "West"),
+    ("NE", "Nebraska", "Midwest"),
+    ("NV", "Nevada", "West"),
+    ("NH", "New Hampshire", "Northeast"),
+    ("NJ", "New Jersey", "Northeast"),
+    ("NM", "New Mexico", "West"),
+    ("NY", "New York", "Northeast"),
+    ("NC", "North Carolina", "South"),
+    ("ND", "North Dakota", "Midwest"),
+    ("OH", "Ohio", "Midwest"),
+    ("OK", "Oklahoma", "South"),
+    ("OR", "Oregon", "West"),
+    ("PA", "Pennsylvania", "Northeast"),
+    ("RI", "Rhode Island", "Northeast"),
+    ("SC", "South Carolina", "South"),
+    ("SD", "South Dakota", "Midwest"),
+    ("TN", "Tennessee", "South"),
+    ("TX", "Texas", "South"),
+    ("UT", "Utah", "West"),
+    ("VT", "Vermont", "Northeast"),
+    ("VA", "Virginia", "South"),
+    ("WA", "Washington", "West"),
+    ("WV", "West Virginia", "South"),
+    ("WI", "Wisconsin", "Midwest"),
+    ("WY", "Wyoming", "West"),
 ]
-STATE_NAMES = {usps: name for usps, _fips, name, *_rest in STATES}
-CENSUS_REGIONS = ["Northeast", "Midwest", "South", "West"]
+STATE_NAMES = {usps: name for usps, name, _region in STATES}
 
 # (city, USPS code of its state, latitude, longitude): the contiguous states
 US_CITIES = [
@@ -185,17 +192,17 @@ def seeded(*key) -> random.Random:
     return random.Random("|".join(str(part) for part in key))
 
 
+# metric: (lowest, highest, decimals)
 METRICS = {
-    "unemployment_pct": ("Unemployment rate (%, synthetic)", 2.5, 7.5, 1),
-    "median_income_kusd": ("Median household income (USD k, synthetic)", 48, 98, 0),
-    "population_m": ("Population (millions, synthetic)", 0.6, 39, 1),
+    "unemployment_pct": (2.5, 7.5, 1),
+    "median_income_kusd": (48, 98, 0),
 }
 
 
 def state_metric(usps: str, metric: str = "unemployment_pct", year: int = 2025) -> float:
     """One made-up number for a state, a metric and a year, stable across restarts."""
-    _label, low, high, digits = METRICS[metric]
-    base = low + (high - low) * seeded(usps, metric).random() ** (3 if metric == "population_m" else 1)
+    low, high, digits = METRICS[metric]
+    base = low + (high - low) * seeded(usps, metric).random()
     drift = (year - 2020) * (high - low) * 0.01 * (seeded(usps, metric, "trend").random() - 0.4)
     shock = (high - low) * 0.35 if metric == "unemployment_pct" and year == 2020 else 0
     return round(base + drift + shock, digits) if digits else round(base + drift + shock)
@@ -212,6 +219,36 @@ def stores():
             "state": state,
             "lat": lat,
             "lon": lon,
+            "revenue_musd": round(4 + rng.random() ** 2 * 60, 1),
+            "headcount": int(20 + rng.random() * 400),
+            "opened": 2005 + int(rng.random() * 21),
+            "format": rng.choice(["Flagship", "Standard", "Outlet"]),
+        })
+    return rows
+
+
+def store_points():
+    """The stores as the points of a map layer: a place, a name, a value and a hover card."""
+    return [
+        {
+            "lat": row["lat"],
+            "lon": row["lon"],
+            "label": row["city"],
+            "value": row["revenue_musd"],
+            "props": {"state": row["state"], "headcount": row["headcount"]},
+        }
+        for row in stores()
+    ]
+
+
+def offices():
+    """One office for each city of WORLD_OFFICES, with the columns of a store but no coordinates."""
+    rows = []
+    for name, country in WORLD_OFFICES:
+        rng = seeded("office", name)
+        rows.append({
+            "city": name,
+            "country": country,
             "revenue_musd": round(4 + rng.random() ** 2 * 60, 1),
             "headcount": int(20 + rng.random() * 400),
             "opened": 2005 + int(rng.random() * 21),
@@ -288,7 +325,7 @@ def delivery_zones():
             zones.append({
                 "zone": f"{'Inner' if ring == 0 else 'Outer'} {wedge + 1}",
                 "ring": [*outline, outline[0]],
-                "deliveries": int(200 + rng.random() * (1800 if ring == 0 else 900)),
+                "loads": int(200 + rng.random() * (1800 if ring == 0 else 900)),
                 "avg_minutes": round(18 + ring * 14 + rng.random() * 12, 1),
             })
     return zones
@@ -304,7 +341,6 @@ def loop_buildings():
             south = 41.8770 + row * 0.0013
             floors = int(6 + rng.random() ** 2 * 70)
             buildings.append({
-                "building_id": f"B{row * 6 + col + 1:02d}",
                 "name": f"{rng.choice(['Wacker', 'LaSalle', 'Monroe', 'Adams', 'Clark'])} "
                         f"{rng.choice(['Tower', 'Exchange', 'Plaza', 'Center'])} {row * 6 + col + 1}",
                 "ring": rectangle(

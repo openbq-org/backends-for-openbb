@@ -652,181 +652,121 @@
             "y": 2,
             "w": 20,
             "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_points_by_city",
-            "x": 20,
-            "y": 2,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_regions_states",
-            "x": 0,
-            "y": 15,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_regions_counties",
-            "x": 20,
-            "y": 15,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_regions_countries",
-            "x": 0,
-            "y": 28,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_regions_provinces",
-            "x": 20,
-            "y": 28,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_lines",
-            "x": 0,
-            "y": 41,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_flows",
-            "x": 20,
-            "y": 41,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_areas",
-            "x": 0,
-            "y": 54,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_footprints_3d",
-            "x": 20,
-            "y": 54,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_heat",
-            "x": 0,
-            "y": 67,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_clusters",
-            "x": 20,
-            "y": 67,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_columns",
-            "x": 0,
-            "y": 80,
-            "w": 20,
-            "h": 13,
             "state": {
               "params": {
-                "by": "state"
+                "place_by": "coordinates"
               }
             },
             "groups": []
           },
           {
-            "i": "maps_arrows",
+            "i": "maps_regions",
             "x": 20,
-            "y": 80,
+            "y": 2,
             "w": 20,
             "h": 13,
+            "state": {
+              "params": {
+                "level": "states"
+              }
+            },
             "groups": []
           },
           {
-            "i": "maps_layers",
+            "i": "maps_flows",
             "x": 0,
-            "y": 93,
-            "w": 40,
-            "h": 15,
+            "y": 15,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "show": "lines"
+              }
+            },
             "groups": []
           },
           {
-            "i": "maps_time",
-            "x": 0,
-            "y": 108,
+            "i": "maps_footprints",
+            "x": 20,
+            "y": 15,
             "w": 20,
             "h": 13,
+            "state": {
+              "params": {
+                "extrude": "off"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_density",
+            "x": 0,
+            "y": 28,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "mode": "heat"
+              }
+            },
             "groups": []
           },
           {
             "i": "maps_marks",
             "x": 20,
-            "y": 108,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_marks_ranked",
-            "x": 0,
-            "y": 121,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_categories",
-            "x": 20,
-            "y": 121,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_view",
-            "x": 0,
-            "y": 134,
+            "y": 28,
             "w": 20,
             "h": 13,
             "state": {
               "params": {
-                "open_on": "place"
+                "style": "signs"
               }
             },
             "groups": []
           },
           {
-            "i": "maps_parameters",
+            "i": "maps_layers",
+            "x": 0,
+            "y": 41,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "open_on": "data"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_time",
+            "x": 0,
+            "y": 56,
+            "w": 20,
+            "h": 13,
+            "groups": []
+          },
+          {
+            "i": "maps_file",
             "x": 20,
-            "y": 134,
+            "y": 56,
             "w": 20,
             "h": 13,
             "state": {
               "params": {
-                "metric": "unemployment_pct",
-                "year": "2025",
-                "region": "all"
+                "format": "geojson"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_sources",
+            "x": 0,
+            "y": 69,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "turn_on": "none"
               }
             },
             "groups": []
@@ -834,82 +774,22 @@
           {
             "i": "maps_group_table",
             "x": 0,
-            "y": 147,
+            "y": 84,
             "w": 16,
             "h": 13,
-            "groups": ["Group 4"]
+            "groups": [
+              "Group 4"
+            ]
           },
           {
             "i": "maps_group_map",
             "x": 16,
-            "y": 147,
+            "y": 84,
             "w": 24,
             "h": 13,
-            "groups": ["Group 4"]
-          },
-          {
-            "i": "maps_file_geojson",
-            "x": 0,
-            "y": 160,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_file_kml",
-            "x": 20,
-            "y": 160,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_file_kmz",
-            "x": 0,
-            "y": 173,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_file_shapefile",
-            "x": 20,
-            "y": 173,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_file_gpx",
-            "x": 0,
-            "y": 186,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_image",
-            "x": 20,
-            "y": 186,
-            "w": 20,
-            "h": 13,
-            "groups": []
-          },
-          {
-            "i": "maps_sources",
-            "x": 0,
-            "y": 199,
-            "w": 20,
-            "h": 14,
-            "groups": []
-          },
-          {
-            "i": "maps_source_layers",
-            "x": 20,
-            "y": 199,
-            "w": 20,
-            "h": 14,
-            "groups": []
+            "groups": [
+              "Group 4"
+            ]
           }
         ]
       },

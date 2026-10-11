@@ -137,9 +137,9 @@ The application uses a decorator-based approach to register widgets, which combi
 
 ## Maps
 
-The "Maps" tab of the app has one example for every kind of map a backend can feed. All of it is synthetic and generated in code: no network, no data files, no extra dependency.
+The "Maps" tab of the app shows each kind of map a backend can feed once: twelve widgets, most with one parameter that switches between the variants of that kind. All of it is synthetic and generated in code: no network, no data files, no extra dependency.
 
-> The Map widget (`"type": "map"`) requires a Workspace build that includes it. A build without it does not know the type.
+> The Map widget (`"type": "map"`) requires a Workspace build that includes the Map widget. On a build without it these widgets are not recognised.
 
 ### The minimal map widget
 
@@ -160,7 +160,8 @@ The endpoint returns rows, like a table endpoint: `[{"lat": 41.88, "lon": -87.63
 | Key | Meaning |
 | --- | --- |
 | `lat` + `lon` | The place of a row as a point: two number columns |
-| `city` (with `country`, `state`) | The place of a row as a point at a city, matched by name in the app |
+| `city` (with `country`, `state`) | The place of a row as a point at a city, matched by name in the app. With `lat` and `lon` named too, it places the rows that have no coordinates |
+| `zip` | The place of a row as a point at a US ZIP code, as text |
 | `state`, `county`, `country`, `province`, `metro`, `district` | The place of a row as a shaded region: exactly one of them |
 | `within` | With `province`: the country of every row, as text (`"Canada"`). Not a column |
 | `as` | `"points"` with `state` or `country`: a point at the centre of the region instead of a shaded region |
@@ -168,6 +169,7 @@ The endpoint returns rows, like a table endpoint: `[{"lat": 41.88, "lon": -87.63
 | `size` | The number the size of a point reads |
 | `label`, `props` | The name in the hover card, and up to 12 other columns shown there |
 | `tag`, `marker` | A short text beside the mark (40 characters), and a sign: `pin`, `check`, `star`, `flag`, `ring` |
+| `category` | A text column: one colour and one legend entry for each of its values (12 at most) |
 | `color` | A column of `#rgb` or `#rrggbb` colours |
 | `time` | The column of the steps of a map that plays (a year, `2024-03`) |
 | `height` | For GeoJSON and files: the property that says how high an area stands, in metres |
@@ -183,38 +185,25 @@ When rows and columns are not enough, the endpoint returns something else and `d
 | `{"kml": text}`, `{"gpx": text}`, `{"kmz": base64}`, `{"shapefile": base64 of the zip}` | A file, at most 4 MB. Its folders become layers |
 | A map: `{"points": [...], "regions": {...}, "shapes": [...], "layers": [...]}` | Everything else: lines, flows, heat, clusters, columns, several layers, ranks, categories, a view |
 
+`data.map` is fixed in `widgets.json`. A widget whose parameter changes what the map shows (another kind of region, another layer) therefore returns a map, which carries its own `title` and `valueLabel`. Answer a value a parameter cannot have with a 400.
+
 ### The widgets
 
-| Widget id | Returns | What it teaches |
-| --- | --- | --- |
-| `maps_points` | Rows | Points by `lat` and `lon`, coloured by a value, sized by another, with a hover card |
-| `maps_points_by_city` | Rows | Points placed by a city name, no coordinates (global) |
-| `maps_regions_states` | Rows | US states shaded by a value |
-| `maps_regions_counties` | Rows | US counties by five-digit FIPS code |
-| `maps_regions_countries` | Rows | Countries by ISO code, with a scale that crosses zero (global) |
-| `maps_regions_provinces` | Rows | States and provinces of any country by ISO 3166-2 code |
-| `maps_time` | Rows | A `time` column: the map gets a slider and a play button |
-| `maps_marks` | Rows | A sign and a tag on the rows the backend singles out |
-| `maps_parameters` | A map | Parameters (metric, year, region), and a legend label that follows them |
-| `maps_group_table` + `maps_group_map` | Rows | A table and a map in one parameter group: a click in the table moves the map |
-| `maps_lines` | A map | Lines (routes) as paths of positions |
-| `maps_flows` | A map | Arcs from an origin to a destination, by state code or by position |
-| `maps_arrows` | A map | A direction at a place, as a short line with a head |
-| `maps_areas` | GeoJSON | Polygons coloured by a property |
-| `maps_footprints_3d` | GeoJSON | Polygons that stand as tall as a height in metres |
-| `maps_heat` | A map | 2,000 points as a density |
-| `maps_clusters` | A map | 2,000 points as circles with a count |
-| `maps_columns` | A map | 3D bars on regions or at points |
-| `maps_layers` | A map | Four named layers, one of them off until it is turned on |
-| `maps_marks_ranked` | A map | Ranks, highlights, sign colours and their line in the legend |
-| `maps_categories` | A map | A colour for each value of a text category |
-| `maps_view` | A map | Where the map opens: a place, a centre and a zoom, a box, a tilt |
-| `maps_image` | A map | A picture laid on four corners, sent as bytes |
-| `maps_file_geojson`, `maps_file_kml`, `maps_file_kmz`, `maps_file_shapefile`, `maps_file_gpx` | A file | The five file answers. The same files are served raw under `/maps/files/` |
-| `maps_sources` | Rows | Five map sources declared in `data.map.sources` |
-| `maps_source_layers` | A map | Two of those sources turned on by the endpoint, by id |
+| Widget id | Parameter | Returns | What it teaches |
+| --- | --- | --- | --- |
+| `maps_points` | `place_by`: `coordinates`, `city` | Rows | Points coloured by a value and sized by another, with a hover card: placed by `lat` and `lon`, or by a city name when a row has no coordinates |
+| `maps_regions` | `level`: `states`, `counties`, `countries`, `provinces` | A map | Shaded regions and the code each level is matched by; a scale that crosses zero |
+| `maps_flows` | `show`: `lines`, `flows`, `arrows` | A map | Lines as paths of positions, arcs from an origin to a destination, and arrows as short lines the backend computes |
+| `maps_footprints` | `extrude`: `off`, `on` | GeoJSON | Polygons coloured by a property, flat or standing as tall as a height in metres |
+| `maps_density` | `mode`: `heat`, `clusters`, `columns` | A map | 2,000 points as a density, as clusters with a count, or summed by state as 3D bars |
+| `maps_layers` | `open_on`: `data`, `place`, `center`, `bounds`, `tilted` | A map | Four named layers, one of them off until it is turned on, and where the map opens (`view`, `pitch`) |
+| `maps_time` | | Rows | A region column and a `time` column: the map gets a slider and a play button |
+| `maps_marks` | `style`: `signs`, `ranks`, `categories` | Rows, or a map | A sign and a tag from two columns; ranks, highlights and their line in the legend; a colour for each category |
+| `maps_file` | `format`: `geojson`, `kml`, `kmz`, `shapefile`, `gpx` | A file | The five file answers. The same files are served raw under `/maps/files/` |
+| `maps_sources` | `turn_on`: `none`, or the id of a source | Rows, or a map | Five map sources declared in `data.map.sources`, turned on by the reader or by the endpoint |
+| `maps_group_table` + `maps_group_map` | `state` (shared) | Rows | A table and a map in one parameter group: a click in the table moves the map |
 
-The code is in `widgets_maps.py` (rows), `widgets_maps_layers.py` (maps with layers), `widgets_maps_files.py` (files and sources) and `widgets_maps_data.py` (the synthetic data and the PNG, zip and shapefile writers).
+The code is in `widgets_maps.py` (rows), `widgets_maps_layers.py` (maps with layers), `widgets_maps_files.py` (files and sources) and `widgets_maps_data.py` (the synthetic data and the PNG, zip and shapefile writers). The docstring of each endpoint shows the shape of the answer for each value of its parameter.
 
 ### Row shapes for each kind of layer
 
@@ -231,20 +220,30 @@ A position is always `[longitude, latitude]`. Every mark also takes `label`, `va
 | `source` | `"source": "demo-temperature"`: the id of a declared source |
 | `image` | `"image": {"mime": "image/png", "data": "<base64>", "corners": [[lon, lat] x 4]}` |
 
-A layer also takes `id`, `name`, `valueLabel`, `opacity` (0 to 1) and `visible: false`. The first layer of the list is drawn at the bottom. The sets of `regions` are `us-states`, `us-counties`, `countries`, `admin1` (states and provinces), `us-cbsa` (metro areas) and `us-cd119` (congressional districts).
+A layer also takes `id`, `name`, `valueLabel`, `opacity` (0 to 1) and `visible: false`. The first layer of the list is drawn at the bottom. The sets of `regions` are `us-states`, `us-counties`, `countries`, `admin1` (states and provinces, with `"within": {"country": "Canada"}` for short codes or names), `us-cbsa` (metro areas) and `us-cd119` (congressional districts).
+
+Beside its marks and layers a map takes `title`, `valueLabel`, `categoryLabel`, `view` (one of `{"place": "Texas"}`, `{"center": [lon, lat], "zoom": 6}`, `{"bounds": [west, south, east, north]}`, with an optional `bearing`), `pitch` (0 to 60) and `basemap` (`{"source": "<id>"}`: a declared source with `role: "imagery"` as the backdrop).
+
+Kinds without a widget of their own:
+
+- **`columns` at points**: a `columns` layer with `"points"` in place of `"regions"` stands a bar at each place. `maps_density` shows the bars on regions.
+- **`image`**: a picture sent as bytes in the answer (PNG, JPEG or WebP as base64, at most 1.4 MB, 4 in a map), with `corners` as `[lon, lat]` in the order top left, top right, bottom right, bottom left. A map never takes the address of an image. The picture is stretched evenly in Web Mercator between its corners. `maps_file` with `format=kmz` shows a picture inside a file, and `maps_sources` one served by the backend.
+- **`polygons` outside GeoJSON**: `"shapes"` of the type `polygon`, with an optional `height` in metres. `maps_footprints` shows the same areas as GeoJSON.
+- **`zip`, `metro`, `district`, `as`, `color` and `category` as columns of rows**: read as the table above says. `maps_marks` shows categories on a map the endpoint returns.
+- **`value`, `category`, `height` and `time` for a file**: in `data.map`, each names a property of a GeoJSON feature, an `ExtendedData` value of a KML placemark or a column of the `.dbf` table of a shapefile. `maps_file` names none: GeoJSON reads the property `value` by itself, and a KML keeps the colours of its own styles.
 
 ### Region codes that match reliably
 
-| Column | Send | Also read |
-| --- | --- | --- |
-| `state` | USPS code: `CA` | FIPS as text (`06`), the name (`California`) |
-| `county` | Five-digit FIPS as text: `06037` | A name with its state: `Cook County, IL` |
-| `country` | ISO 3166-1 alpha-3: `USA` | Alpha-2 (`US`), numeric (`840`), the name |
-| `province` | ISO 3166-2: `CA-ON` | A short code or a name, with `within` naming the country |
-| `metro` | CBSA code: `35620` | The name of the area |
-| `district` | State and number: `CA-12` | `AK-AL` for a state with one district |
+| Column | Set | Send | Also read |
+| --- | --- | --- | --- |
+| `state` | `us-states` | USPS code: `CA` | FIPS as text (`06`), the name (`California`) |
+| `county` | `us-counties` | Five-digit FIPS as text: `06037` | A name with its state: `Cook County, IL` |
+| `country` | `countries` | ISO 3166-1 alpha-3: `USA` | Alpha-2 (`US`), numeric (`840`), the name |
+| `province` | `admin1` | ISO 3166-2: `CA-ON` | A short code or a name, with `within` naming the country |
+| `metro` | `us-cbsa` | CBSA code: `35620` | The name of the area |
+| `district` | `us-cd119` | State and number: `CA-12` | `AK-AL` for a state with one district |
 
-Send codes as text so a leading zero survives. One row for each region: a second row of the same region is not drawn, unless the rows carry `time`. A code that matches nothing is left out and the map says how many; a name that two regions answer to (`Georgia`, `Washington County`) is never guessed.
+The column is what rows name in `data.map`; the set is what a map the endpoint returns names in `regions.set`. Send codes as text so a leading zero survives. One row for each region: a second row of the same region is not drawn, unless the rows carry `time`. A code that matches nothing is left out and the map says how many; a name that two regions answer to (`Georgia`, `Washington County`) is never guessed.
 
 ### Map sources: same origin only
 
@@ -266,7 +265,7 @@ A source is tiles, GeoJSON or a picture that the map draws as a layer under the 
 - **The address must be on the origin of the backend that declares it.** `endpoint` is a path of this backend; `url` is an absolute address on the same origin. A source on any other host is refused. To show imagery of a third party, add a route that proxies it, and check that the terms of the provider allow that.
 - `kind` is `raster-tiles`, `raster-dem` (needs `encoding`: `terrarium` or `mapbox`), `geojson` (needs `layers` that say how it is drawn), `image` (needs `coordinates`: four corners), `vector-tiles` or `pmtiles`. This backend serves the first four.
 - `attribution` is required. `role: "imagery"` offers a raster source as a backdrop in place of the basemap.
-- A declared source is a layer that is off until the reader turns it on in the Layers panel. To have it on when the map opens, the endpoint returns a layer `{"kind": "source", "source": "<id>"}`.
+- A declared source is a layer that is off until the reader turns it on in the Layers panel. To have it on when the map opens, the endpoint returns a layer `{"kind": "source", "source": "<id>"}`, or `"basemap": {"source": "<id>"}` for a backdrop. A map carries the id only, never an address.
 - The tiles here are procedural gradients made with the standard library. They are not imagery.
 
 ### Limits
@@ -279,6 +278,7 @@ A source is tiles, GeoJSON or a picture that the map draws as a layer under the 
 | Flows of one map | 2,000 |
 | Layers of one map | 12 |
 | Steps of time | 60 |
+| Categories of one map | 12 |
 | Images in one map | 4, each at most 1.4 MB as base64 |
 | One map as JSON | 2 MB |
 | A file answer (KML, GPX, KMZ, shapefile) | 4 MB as text or base64 |

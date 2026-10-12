@@ -642,6 +642,157 @@
           }
         ]
       },
+      "maps": {
+        "id": "maps",
+        "name": "Maps",
+        "layout": [
+          {
+            "i": "maps_points",
+            "x": 0,
+            "y": 2,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "place_by": "coordinates"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_regions",
+            "x": 20,
+            "y": 2,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "level": "states"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_flows",
+            "x": 0,
+            "y": 15,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "show": "lines"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_footprints",
+            "x": 20,
+            "y": 15,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "extrude": "off"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_density",
+            "x": 0,
+            "y": 28,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "mode": "heat"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_marks",
+            "x": 20,
+            "y": 28,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "style": "signs"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_layers",
+            "x": 0,
+            "y": 41,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "open_on": "data"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_time",
+            "x": 0,
+            "y": 56,
+            "w": 20,
+            "h": 13,
+            "groups": []
+          },
+          {
+            "i": "maps_file",
+            "x": 20,
+            "y": 56,
+            "w": 20,
+            "h": 13,
+            "state": {
+              "params": {
+                "format": "geojson"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_sources",
+            "x": 0,
+            "y": 69,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "turn_on": "none"
+              }
+            },
+            "groups": []
+          },
+          {
+            "i": "maps_group_table",
+            "x": 0,
+            "y": 84,
+            "w": 16,
+            "h": 13,
+            "groups": [
+              "Group 4"
+            ]
+          },
+          {
+            "i": "maps_group_map",
+            "x": 16,
+            "y": 84,
+            "w": 24,
+            "h": 13,
+            "groups": [
+              "Group 4"
+            ]
+          }
+        ]
+      },
       "input-form": {
         "id": "input-form",
         "name": "Input Form",
@@ -1012,6 +1163,12 @@
         "type": "endpointParam",
         "paramName": "symbol",
         "defaultValue": "AAPL"
+      },
+      {
+        "name": "Group 4",
+        "type": "endpointParam",
+        "paramName": "state",
+        "defaultValue": "TX"
       }
     ]
   }

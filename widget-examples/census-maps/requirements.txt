@@ -1,0 +1,6 @@
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pyogrio>=0.11,<0.14
+pyarrow>=19,<27
+shapely>=2.1,<3
+pyproj>=3.7,<4

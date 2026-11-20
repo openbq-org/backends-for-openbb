@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 VALID_WIDGET_TYPES = {
+    "map",
     "table",
     "chart",
     "table_ssrm",

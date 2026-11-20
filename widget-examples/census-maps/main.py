@@ -14,6 +14,7 @@ app.add_middleware(
         "https://pro.openbb.co",
         "https://pro.openbb.dev",
         "http://localhost:1420",
+        "http://127.0.0.1:1423",
     ],
     allow_methods=["GET"],
     allow_headers=["*"],

@@ -29,6 +29,9 @@ from widgets_youtube import router as youtube_router
 from widgets_highchart import router as highchart_router
 from widgets_live_grid import router as live_grid_router
 from widgets_vegalite import router as vegalite_router
+from widgets_maps import router as maps_router
+from widgets_maps_layers import router as maps_layers_router
+from widgets_maps_files import router as maps_files_router
 
 
 # ============================================================================
@@ -73,6 +76,9 @@ app.include_router(youtube_router)
 app.include_router(highchart_router)
 app.include_router(live_grid_router)
 app.include_router(vegalite_router)
+app.include_router(maps_router)
+app.include_router(maps_layers_router)
+app.include_router(maps_files_router)
 
 
 if __name__ == "__main__":

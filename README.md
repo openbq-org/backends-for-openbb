@@ -57,6 +57,8 @@ This will give you a good understanding of how to setup your own backend and con
 
 For more focused patterns, see the [`widget-examples`](widget-examples/) directory — including the [iframe & HtmlViewer parameter bridge](widget-examples/iframe-bridge-example/README.md), which shows how a widget can push parameter updates back to Workspace to drive a synced widget group.
 
+For Census GIS files, see the standalone [Census TIGER/Line backend](widget-examples/census-maps/README.md): real Shapefile, FileGDB, and GeoPackage inputs, a map gallery with source guides, and complete paginated attributes.
+
 ### Leveraging AI
 
 If you are utilizing a coding agent to build your OpenBB backend, we recommend:

@@ -20,6 +20,7 @@ import requests
 
 
 WIDGET_TYPE_VALIDATORS = {
+    "map": lambda response: isinstance(response, (list, dict)),
     "table": lambda response: isinstance(response, list),
     "chart": lambda response: isinstance(response, dict)
     and ("data" in response or "layout" in response),

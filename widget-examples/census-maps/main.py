@@ -1,11 +1,14 @@
 """A local Census backend: native Shapefile/FileGDB reads, GeoJSON map previews."""
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 import census
+import explanations
+import maps
 from catalog import DATASETS, SOURCES, VINTAGE
+from examples import EXAMPLES, TABS
 
 app = FastAPI(title="Census TIGER/Line Maps")
 app.add_middleware(
@@ -19,21 +22,6 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
-
-
-def dataset_parameter(format: str) -> dict:
-    options = [
-        {"label": item.name, "value": key}
-        for key, item in DATASETS.items()
-        if SOURCES[item.source].format == format and item.spatial
-    ]
-    return {
-        "paramName": "dataset",
-        "type": "text",
-        "label": "Dataset",
-        "value": options[0]["value"],
-        "options": options,
-    }
 
 
 def page_parameters() -> list[dict]:
@@ -58,29 +46,53 @@ def root():
 @app.get("/widgets.json")
 def widgets():
     definitions = {}
-    for format in ("shapefile", "geodatabase"):
-        parameter = dataset_parameter(format)
-        label = "Shapefiles" if format == "shapefile" else "Geodatabases"
-        for kind, endpoint in (("map", "map"), ("table", "attributes")):
-            definitions[f"census_{format}_{kind}"] = {
-                "name": f"Census {label} - {'Map preview' if kind == 'map' else 'Original attributes'}",
-                "description": "Real DC TIGER/Line data. Map previews are bounded and simplified; attribute pages preserve every original field.",
+    for key, example in EXAMPLES.items():
+        for kind in ("map", "markdown"):
+            definition = {
+                "name": example.title if kind == "map" else "About this map",
+                "description": example.story
+                if kind == "map"
+                else "Original file format, Census source, and how to interpret this map.",
                 "category": "Census",
                 "type": kind,
-                "endpoint": endpoint,
-                "gridData": {"w": 20, "h": 16},
-                "params": [parameter, *(page_parameters() if kind == "table" else [])],
-                "data": {"map": {}} if kind == "map" else {"table": {"showAll": True}},
+                "endpoint": f"gallery/{key}" + ("/about" if kind == "markdown" else ""),
+                "gridData": {"w": 24 if kind == "map" else 16, "h": 20},
+                "params": [],
             }
-    definitions["census_address_ranges"] = {
-        "name": "Census address-range relationships",
-        "description": "Original nonspatial DBF attributes. Potential address ranges join to edges by TLID; they are not individual address points.",
+            if kind == "map":
+                definition["data"] = {"map": {}}
+                if example.mode in ("source", "layers"):
+                    definition["data"]["map"]["sources"] = [maps.ROAD_SOURCE]
+            definitions[f"census_{key}_{kind}"] = definition
+    # The explorer keeps the complete attribute path separate from the curated maps.
+    parameter = {
+        "paramName": "dataset",
+        "type": "text",
+        "label": "Dataset",
+        "value": "shp_tracts",
+        "options": [
+            {"label": f"{item.name} ({SOURCES[item.source].format})", "value": key}
+            for key, item in DATASETS.items()
+        ],
+    }
+    definitions["census_attributes"] = {
+        "name": "Original Census attributes",
+        "description": "Every original field, with paging across the complete selected layer.",
         "category": "Census",
         "type": "table",
-        "endpoint": "address_ranges",
-        "gridData": {"w": 40, "h": 12},
-        "params": page_parameters(),
+        "endpoint": "attributes",
+        "gridData": {"w": 40, "h": 16},
+        "params": [parameter, *page_parameters()],
         "data": {"table": {"showAll": True}},
+    }
+    definitions["census_attribute_notes"] = {
+        "name": "Working with Census attributes",
+        "description": "Identifiers, relationship tables, vintage, and complete data reads.",
+        "category": "Census",
+        "type": "markdown",
+        "endpoint": "attribute_notes",
+        "gridData": {"w": 40, "h": 9},
+        "params": [],
     }
     return definitions
 
@@ -88,51 +100,91 @@ def widgets():
 @app.get("/apps.json")
 def apps():
     tabs = {}
-    groups = []
-    for index, format in enumerate(("shapefile", "geodatabase"), start=1):
-        label = "Shapefiles" if format == "shapefile" else "Geodatabases"
-        layout = [
-            {
-                "i": f"census_{format}_{kind}",
-                "x": x,
-                "y": 0,
-                "w": 20,
-                "h": 16,
-                "groups": [f"Group {index}"],
-            }
-            for kind, x in (("map", 0), ("table", 20))
-        ]
-        if format == "shapefile":
-            layout.append(
-                {
-                    "i": "census_address_ranges",
-                    "x": 0,
-                    "y": 16,
-                    "w": 40,
-                    "h": 12,
-                    "groups": [],
-                }
+    for tab_id, label in TABS.items():
+        layout = []
+        for row, key in enumerate(
+            key for key, example in EXAMPLES.items() if example.tab == tab_id
+        ):
+            layout.extend(
+                [
+                    {
+                        "i": f"census_{key}_map",
+                        "x": 0,
+                        "y": row * 20,
+                        "w": 24,
+                        "h": 20,
+                        "groups": [],
+                    },
+                    {
+                        "i": f"census_{key}_markdown",
+                        "x": 24,
+                        "y": row * 20,
+                        "w": 16,
+                        "h": 20,
+                        "groups": [],
+                    },
+                ]
             )
-        tabs[format] = {"id": format, "name": label, "layout": layout}
-        groups.append(
+        tabs[tab_id] = {"id": tab_id, "name": label, "layout": layout}
+    tabs["attributes"] = {
+        "id": "attributes",
+        "name": "Original attributes",
+        "layout": [
             {
-                "name": f"Group {index}",
-                "widgetIds": [item["i"] for item in layout if item["groups"]],
-                "type": "param",
-                "paramName": "dataset",
-                "defaultValue": dataset_parameter(format)["value"],
-            }
-        )
+                "i": "census_attribute_notes",
+                "x": 0,
+                "y": 0,
+                "w": 40,
+                "h": 9,
+                "groups": [],
+            },
+            {"i": "census_attributes", "x": 0, "y": 9, "w": 40, "h": 16, "groups": []},
+        ],
+    }
     return [
         {
             "name": "Census TIGER/Line",
-            "description": "Real Census shapefiles and file geodatabases, read locally with GDAL.",
+            "description": "A Census atlas: real boundaries, networks, points, population, 3D, density and layered maps, each with a source guide.",
             "allowCustomization": True,
             "tabs": tabs,
-            "groups": groups,
+            "groups": [],
             "prompts": [],
         }
     ]
+
+
+@app.get("/gallery/{example_id}/about")
+def gallery_about(example_id: str, request: Request):
+    if example_id not in EXAMPLES:
+        raise HTTPException(404, "Unknown Census map example.")
+    return explanations.about(example_id, str(request.base_url).rstrip("/"))
+
+
+@app.get("/gallery/{example_id}")
+def gallery_map(example_id: str):
+    if example_id not in EXAMPLES:
+        raise HTTPException(404, "Unknown Census map example.")
+    return maps.render(example_id)
+
+
+@app.get("/sources/roads.geojson")
+def road_source():
+    return maps.road_source()
+
+
+@app.get("/attribute_notes")
+def attribute_notes():
+    return """## Read the original Census attributes
+
+The table below pages through **all original fields** of the selected dataset. Change **Page** to continue; a page is not a complete-dataset total.
+
+- **Identifiers:** keep GEOID, FIPS and ZIP fields as text so leading zeros survive.
+- **Address ranges:** the standalone DBF has no geometry. Join TLID to edge data; potential ranges are not individual addresses.
+- **Vintage:** POP20 and HOUSING20 are 2020 Census counts. Current boundaries and GEOID20 must not be joined as though they were interchangeable.
+- **Original geometry:** use `/download?dataset=<id>` to retain the unchanged Census archive. Map previews may simplify geometry or select fields for display.
+
+[Source concepts and record layouts](https://www.census.gov/programs-surveys/geography/technical-documentation/complete-technical-documentation/tiger-geo-line/2026.html)
+"""
 
 
 @app.get("/datasets")

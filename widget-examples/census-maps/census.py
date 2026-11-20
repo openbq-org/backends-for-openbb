@@ -1,4 +1,4 @@
-"""Read original Census archives; derive bounded display geometry separately."""
+"""Read original Census archives; derive display geometry separately."""
 
 import json
 import os
@@ -14,24 +14,26 @@ from catalog import DATASETS, SOURCES, VINTAGE
 
 DATA_DIR = Path(os.environ.get("CENSUS_DATA_DIR", Path(__file__).parent / ".data"))
 MAX_PREVIEW_FEATURES = 500
-# These leave room under Workspace's map budgets for labels and multipart shapes.
 MAX_PREVIEW_BYTES = 1_500_000
 MAX_PREVIEW_VERTICES = 75_000
 PREVIEW_FIELDS = (
     "GEOID",
     "GEOID20",
-    "NAME",
     "NAMELSAD",
     "FULLNAME",
+    "NAME",
+    "MTFCC",
+    "COUNTYFP",
+    "POINTID",
+    "AREAID",
     "TLID",
     "LINEARID",
-    "MTFCC",
     "ZIPL",
     "ZIPR",
-    "LFROMHN",
-    "LTOHN",
-    "RFROMHN",
-    "RTOHN",
+    "ALAND",
+    "AWATER",
+    "POP20",
+    "HOUSING20",
 )
 
 
@@ -57,6 +59,8 @@ def metadata(dataset: str) -> dict:
         "format": source.format,
         "vintage": VINTAGE,
         "source_url": source.url,
+        "filename": source.filename,
+        "geography": definition.geography,
         "layer": info["layer_name"],
         "crs": info["crs"],
         "geometry_type": info["geometry_type"],
@@ -72,45 +76,50 @@ def metadata(dataset: str) -> dict:
     }
 
 
+def records(
+    dataset: str, *, geometry: bool = False, columns=None, offset=0, limit=None
+):
+    """One native read for tables, display geometry, or complete derived statistics."""
+    definition, _source, path = selected(dataset)
+    return pyogrio.read_arrow(
+        path,
+        layer=definition.layer,
+        read_geometry=geometry,
+        columns=columns,
+        skip_features=offset,
+        max_features=limit,
+    )
+
+
 def attributes(dataset: str, page: int, page_size: int) -> list[dict]:
     definition, _source, path = selected(dataset)
     info = pyogrio.read_info(path, layer=definition.layer)
     offset = (page - 1) * page_size
     if offset >= info["features"]:
         return []
-    _meta, table = pyogrio.read_arrow(
-        path,
-        layer=definition.layer,
-        read_geometry=False,
-        skip_features=offset,
-        max_features=page_size,
-    )
+    _meta, table = records(dataset, offset=offset, limit=page_size)
     return table.to_pylist()
 
 
-def preview(dataset: str, limit: int, simplify_m: float) -> dict:
+def feature_collection(
+    dataset: str, limit: int | None, simplify_m: float, columns=None
+) -> dict:
     definition, source, path = selected(dataset)
     if not definition.spatial:
         raise HTTPException(
             400, "This relationship table has no geometry. Read /attributes instead."
         )
     info = pyogrio.read_info(path, layer=definition.layer)
-    # Select display fields only. Attribute reads above always retain every original field.
-    fields = [key for key in PREVIEW_FIELDS if key in info["fields"]][:8]
-    meta, table = pyogrio.read_arrow(
-        path,
-        layer=definition.layer,
-        columns=fields,
-        max_features=limit,
-    )
+    fields = [key for key in (columns or PREVIEW_FIELDS) if key in info["fields"]]
+    meta, table = records(dataset, geometry=True, columns=fields, limit=limit)
     geometry_column = meta["geometry_name"] or "wkb_geometry"
     to_wgs84 = Transformer.from_crs(info["crs"], "EPSG:4326", always_xy=True)
-    # All curated extracts are in DC: UTM zone 18N gives simplification units in metres.
-    to_local = Transformer.from_crs(info["crs"], "EPSG:26918", always_xy=True)
-    local_to_wgs84 = Transformer.from_crs("EPSG:26918", "EPSG:4326", always_xy=True)
+    to_local = Transformer.from_crs(info["crs"], definition.metric_crs, always_xy=True)
+    local_to_wgs84 = Transformer.from_crs(
+        definition.metric_crs, "EPSG:4326", always_xy=True
+    )
     features = []
-    vertices = 0
-    parts = 0
+    vertices = parts = max_rings = 0
     for row in table.to_pylist():
         wkb = row.pop(geometry_column)
         if wkb is None:
@@ -119,22 +128,22 @@ def preview(dataset: str, limit: int, simplify_m: float) -> dict:
         if simplify_m:
             geometry = transform(
                 geometry, to_local.transform, interleaved=False
-            ).simplify(
-                simplify_m,
-                preserve_topology=True,
-            )
+            ).simplify(simplify_m, preserve_topology=True)
             geometry = transform(geometry, local_to_wgs84.transform, interleaved=False)
         else:
             geometry = transform(geometry, to_wgs84.transform, interleaved=False)
         if geometry.is_empty:
             continue
         vertices += int(get_num_coordinates(geometry))
-        parts += len(geometry.geoms) if hasattr(geometry, "geoms") else 1
-        if vertices > MAX_PREVIEW_VERTICES or parts > 3_000:
-            raise HTTPException(
-                413,
-                "Preview exceeds the geometry budget. Reduce limit or increase simplify_m.",
-            )
+        components = list(geometry.geoms) if hasattr(geometry, "geoms") else [geometry]
+        parts += len(components)
+        max_rings = max(
+            max_rings,
+            *(
+                1 + len(g.interiors) if g.geom_type == "Polygon" else 0
+                for g in components
+            ),
+        )
         label = next(
             (
                 row[key]
@@ -147,20 +156,20 @@ def preview(dataset: str, limit: int, simplify_m: float) -> dict:
             {
                 "type": "Feature",
                 "geometry": mapping(geometry),
-                "properties": {"name": str(label), "color": "#2980b9", **row},
+                "properties": {"name": str(label), **row},
             }
         )
     total = int(info["features"])
-    result = {
+    return {
         "type": "FeatureCollection",
         "name": f"{definition.name} ({source.format}, {VINTAGE})",
         "features": features,
         "map": {
             "version": 1,
             "notes": [
-                f"U.S. Census Bureau, TIGER/Line {VINTAGE}. Preview: {len(features):,} of {total:,} features.",
-                f"Geometry simplified by {simplify_m:g} m per feature; shared boundaries may differ. Original geometry is in the archive download.",
-                "Map cards show selected fields. The attribute table keeps all original fields and pages through the complete dataset.",
+                f"U.S. Census Bureau {VINTAGE}: {len(features):,} of {total:,} features; display simplified {simplify_m:g} m.",
+                "Simplification preserves each feature, not shared boundaries. Original geometry is in the archive download.",
+                "Map cards show selected fields. Attribute pages retain every original field.",
             ],
         },
         "preview": {
@@ -169,10 +178,32 @@ def preview(dataset: str, limit: int, simplify_m: float) -> dict:
             "simplify_m": simplify_m,
             "source_format": source.format,
             "source_url": source.url,
+            "vertices": vertices,
+            "parts": parts,
+            "max_rings": max_rings,
         },
     }
-    if len(json.dumps(result).encode()) > MAX_PREVIEW_BYTES:
+
+
+def check_display(collection: dict) -> dict:
+    counts = collection["preview"]
+    if (
+        counts["vertices"] > MAX_PREVIEW_VERTICES
+        or counts["parts"] > 3_000
+        or counts["max_rings"] > 200
+    ):
+        raise HTTPException(
+            413,
+            "Preview exceeds the geometry budget. Reduce limit or increase simplify_m.",
+        )
+    if len(json.dumps(collection).encode()) > MAX_PREVIEW_BYTES:
         raise HTTPException(
             413, "Preview exceeds the size budget. Reduce limit or increase simplify_m."
         )
-    return result
+    return collection
+
+
+def preview(dataset: str, limit: int, simplify_m: float) -> dict:
+    return check_display(
+        feature_collection(dataset, limit, simplify_m, columns=PREVIEW_FIELDS[:8])
+    )

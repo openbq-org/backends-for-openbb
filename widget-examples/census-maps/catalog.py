@@ -29,6 +29,20 @@ SOURCES = {
     ),
     "ranges": Source("dbf", f"{CENSUS}/TIGER2026/ADDR/tl_2026_11001_addr.zip"),
     "boundaries": Source("geodatabase", f"{CENSUS}/TGRGDB26/tlgdb_2026_11_dc.gdb.zip"),
+    "points": Source("shapefile", f"{CENSUS}/TIGER2026/POINTLM/tl_2026_11_pointlm.zip"),
+    "landmarks": Source(
+        "shapefile", f"{CENSUS}/TIGER2026/AREALM/tl_2026_11_arealm.zip"
+    ),
+    "rivers": Source(
+        "shapefile", f"{CENSUS}/TIGER2026/LINEARWATER/tl_2026_11001_linearwater.zip"
+    ),
+    "rhode_island": Source(
+        "shapefile", f"{CENSUS}/TIGER2026/TRACT/tl_2026_44_tract.zip"
+    ),
+    "hawaii": Source("shapefile", f"{CENSUS}/TIGER2026/TRACT/tl_2026_15_tract.zip"),
+    "geopackage": Source(
+        "geopackage", f"{CENSUS}/TGRGPKG26/tlgpkg_2026_11_dc.gpkg.zip"
+    ),
 }
 
 
@@ -38,9 +52,24 @@ class Dataset:
     source: str
     layer: str | None = None
     spatial: bool = True
+    geography: str = "District of Columbia"
+    metric_crs: str = "EPSG:26918"
 
 
 DATASETS = {
+    "shp_points": Dataset("DC point landmarks", "points"),
+    "shp_landmarks": Dataset("DC area landmarks", "landmarks"),
+    "shp_rivers": Dataset("DC rivers and streams", "rivers"),
+    "shp_ri": Dataset(
+        "Rhode Island census tracts",
+        "rhode_island",
+        geography="Rhode Island",
+        metric_crs="EPSG:26919",
+    ),
+    "shp_hi": Dataset(
+        "Hawaii census tracts", "hawaii", geography="Hawaii", metric_crs="EPSG:26904"
+    ),
+    "gpkg_tracts": Dataset("DC GeoPackage census tracts", "geopackage", "Census Tract"),
     "shp_tracts": Dataset("DC census tracts", "tracts"),
     "shp_roads": Dataset("DC roads", "roads"),
     "shp_water": Dataset("DC water areas", "water"),
